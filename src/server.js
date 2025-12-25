@@ -23,6 +23,10 @@ app.use('/api/subscription', require('./routes/subscription'));
 app.use('/api/super-admin', require('./routes/superAdmin'));
 
 // Health check
+app.get('/', (req, res) => {
+  res.json({ status: 'OK', message: 'Gym Hub API is running. Access endpoints at /api/...' });
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Gym Hub API is running' });
 });
