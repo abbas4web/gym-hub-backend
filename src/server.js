@@ -14,10 +14,17 @@ app.use(express.urlencoded({ extended: true }));
 
 // Initialize database
 const connectDB = require('./config/db');
-// Only connect immediately if not in production (or if you want to connect on startup)
-// In Vercel serverless, it's often better to connect inside the handler or ensure connection is cached.
-// But calling it here is generally fine if the connection logic handles buffering/caching.
-connectDB();
+
+// Middleware to ensure DB connection for every request (Serverless pattern)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    res.status(500).json({ success: false, error: 'Database connection failed' });
+  }
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
