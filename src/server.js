@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors());
@@ -14,6 +14,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Initialize database
 const connectDB = require('./config/db');
+// Only connect immediately if not in production (or if you want to connect on startup)
+// In Vercel serverless, it's often better to connect inside the handler or ensure connection is cached.
+// But calling it here is generally fine if the connection logic handles buffering/caching.
 connectDB();
 
 // Routes
