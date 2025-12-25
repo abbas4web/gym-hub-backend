@@ -1,111 +1,140 @@
-const db = require('../config/database');
+const SuperAdmin = require('../models/SuperAdmin');
+const User = require('../models/User');
+const Receipt = require('../models/Receipt');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production';
 
 // Super Admin Login
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ success: false, error: 'Email and password required' });
   }
 
-  db.get(
-    'SELECT * FROM super_admins WHERE email = ?',
-    [email],
-    async (err, superAdmin) => {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Database error' });
-      }
+  try {
+    const superAdmin = await SuperAdmin.findOne({ email });
 
-      if (!superAdmin) {
-        return res.status(401).json({ success: false, error: 'Invalid credentials' });
-      }
-
-      const isValidPassword = await bcrypt.compare(password, superAdmin.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ success: false, error: 'Invalid credentials' });
-      }
-
-      const token = jwt.sign(
-        { id: superAdmin.id, email: superAdmin.email, role: 'super_admin' },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
-      res.json({
-        success: true,
-        token,
-        superAdmin: {
-          id: superAdmin.id,
-          email: superAdmin.email,
-          name: superAdmin.name,
-        },
-      });
+    if (!superAdmin) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
-  );
+
+    const isValidPassword = await bcrypt.compare(password, superAdmin.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: superAdmin._id, email: superAdmin.email, role: 'super_admin' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      superAdmin: {
+        id: superAdmin._id,
+        email: superAdmin.email,
+        name: superAdmin.name,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };
 
 // Get Current Super Admin
-exports.getMe = (req, res) => {
-  db.get(
-    'SELECT id, email, name, created_at FROM super_admins WHERE id = ?',
-    [req.superAdminId],
-    (err, superAdmin) => {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Database error' });
-      }
+exports.getMe = async (req, res) => {
+  try {
+    const superAdmin = await SuperAdmin.findById(req.superAdminId).select('id email name created_at');
 
-      if (!superAdmin) {
-        return res.status(404).json({ success: false, error: 'Super admin not found' });
-      }
-
-      res.json({ success: true, superAdmin });
+    if (!superAdmin) {
+      return res.status(404).json({ success: false, error: 'Super admin not found' });
     }
-  );
+
+    res.json({ success: true, superAdmin });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };
 
 // Get All Admins
-exports.getAllAdmins = (req, res) => {
+exports.getAllAdmins = async (req, res) => {
   const { search, status } = req.query;
-  let query = `
-    SELECT 
-      u.id, u.name, u.email, u.gym_name, u.subscription_plan, u.status,
-      u.created_at, u.total_revenue,
-      COUNT(DISTINCT c.id) as client_count
-    FROM users u
-    LEFT JOIN clients c ON u.id = c.user_id
-    WHERE 1=1
-  `;
-  const params = [];
 
-  if (search) {
-    query += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.gym_name LIKE ?)';
-    const searchParam = `%${search}%`;
-    params.push(searchParam, searchParam, searchParam);
-  }
+  try {
+    const pipeline = [];
 
-  if (status && status !== 'all') {
-    query += ' AND u.status = ?';
-    params.push(status);
-  }
-
-  query += ' GROUP BY u.id ORDER BY u.created_at DESC';
-
-  db.all(query, params, (err, admins) => {
-    if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ success: false, error: 'Database error' });
+    // Match stage for search and status
+    const match = {};
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      match.$or = [
+        { name: regex },
+        { email: regex },
+        { gym_name: regex }
+      ];
+    }
+    if (status && status !== 'all') {
+      match.status = status;
+    }
+    if (Object.keys(match).length > 0) {
+      pipeline.push({ $match: match });
     }
 
+    // Lookup clients to get count
+    pipeline.push({
+      $lookup: {
+        from: 'clients',
+        localField: '_id', // String UUID
+        foreignField: 'user_id', // String UUID
+        as: 'clients'
+      }
+    });
+
+    // Lookup subscription to get plan
+    pipeline.push({
+      $lookup: {
+        from: 'subscriptions',
+        localField: '_id',
+        foreignField: 'user_id',
+        as: 'subscription'
+      }
+    });
+
+    // Project stage
+    pipeline.push({
+      $project: {
+        id: '$_id',
+        _id: 0,
+        name: 1,
+        email: 1,
+        gym_name: 1,
+        status: 1,
+        created_at: 1,
+        total_revenue: 1,
+        client_count: { $size: '$clients' },
+        subscription_plan: { $ifNull: [{ $arrayElemAt: ['$subscription.plan', 0] }, 'free'] }
+      }
+    });
+
+    // Sort
+    pipeline.push({ $sort: { created_at: -1 } });
+
+    const admins = await User.aggregate(pipeline);
+
     res.json({ success: true, admins });
-  });
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };
 
 // Update Admin Status
-exports.updateAdminStatus = (req, res) => {
+exports.updateAdminStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
@@ -113,60 +142,65 @@ exports.updateAdminStatus = (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid status' });
   }
 
-  db.run(
-    'UPDATE users SET status = ? WHERE id = ?',
-    [status, id],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Database error' });
-      }
+  try {
+    const user = await User.findByIdAndUpdate(id, { status }, { new: true });
 
-      if (this.changes === 0) {
-        return res.status(404).json({ success: false, error: 'Admin not found' });
-      }
-
-      res.json({ success: true, message: 'Status updated successfully' });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Admin not found' });
     }
-  );
+
+    res.json({ success: true, message: 'Status updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };
 
 // Get Dashboard Stats
-exports.getDashboardStats = (req, res) => {
-  const stats = {};
+exports.getDashboardStats = async (req, res) => {
+  try {
+    const stats = {};
 
-  // Get admin counts
-  db.get(
-    `SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-      SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended,
-      SUM(COALESCE(total_revenue, 0)) as total_revenue
-    FROM users`,
-    (err, adminStats) => {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Database error' });
-      }
-
-      stats.totalAdmins = adminStats.total || 0;
-      stats.activeAdmins = adminStats.active || 0;
-      stats.suspendedAdmins = adminStats.suspended || 0;
-      stats.totalRevenue = adminStats.total_revenue || 0;
-
-      // Get monthly revenue (last 30 days)
-      db.get(
-        `SELECT SUM(amount) as monthly_revenue 
-         FROM receipts 
-         WHERE generated_at >= datetime('now', '-30 days')`,
-        (err, revenueStats) => {
-          if (err) {
-            return res.status(500).json({ success: false, error: 'Database error' });
-          }
-
-          stats.monthlyRevenue = revenueStats?.monthly_revenue || 0;
-
-          res.json({ success: true, stats });
+    // Get admin counts and total revenue
+    const adminStats = await User.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          suspended: { $sum: { $cond: [{ $eq: ['$status', 'suspended'] }, 1, 0] } },
+          total_revenue: { $sum: '$total_revenue' }
         }
-      );
-    }
-  );
+      }
+    ]);
+
+    const result = adminStats[0] || {};
+    stats.totalAdmins = result.total || 0;
+    stats.activeAdmins = result.active || 0;
+    stats.suspendedAdmins = result.suspended || 0;
+    stats.totalRevenue = result.total_revenue || 0;
+
+    // Get monthly revenue (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const revenueStats = await Receipt.aggregate([
+      {
+        $match: {
+          generated_at: { $gte: thirtyDaysAgo }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          monthly_revenue: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    stats.monthlyRevenue = revenueStats[0]?.monthly_revenue || 0;
+
+    res.json({ success: true, stats });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };

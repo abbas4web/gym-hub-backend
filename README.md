@@ -1,6 +1,6 @@
 # Gym Hub Backend API
 
-Backend REST API for Gym Hub mobile application built with Node.js, Express, and SQLite.
+Backend REST API for Gym Hub mobile application built with Node.js, Express, and MongoDB.
 
 ## Features
 
@@ -8,7 +8,7 @@ Backend REST API for Gym Hub mobile application built with Node.js, Express, and
 - ✅ Client management (CRUD)
 - ✅ Automatic receipt generation
 - ✅ Subscription management
-- ✅ SQLite database
+- ✅ MongoDB database
 - ✅ RESTful API endpoints
 
 ## Installation
@@ -65,19 +65,21 @@ Create a `.env` file in the backend directory:
 ```
 PORT=3000
 JWT_SECRET=your-super-secret-jwt-key
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.example.mongodb.net/gym_hub?retryWrites=true&w=majority
 NODE_ENV=development
 ```
 
 ## Database
 
-SQLite database file is created at `backend/database/gym_hub.db`
+This project uses MongoDB (via Mongoose). Make sure to set `MONGODB_URI` in `.env`.
 
-### Tables
+### Models
 
-- `users` - User accounts
-- `clients` - Gym clients
-- `receipts` - Payment receipts
-- `subscriptions` - User subscription plans
+- `User` - User accounts
+- `Client` - Gym clients
+- `Receipt` - Payment receipts
+- `Subscription` - User subscription plans
+- `SuperAdmin` - Super admin accounts
 
 ## Testing the API
 
@@ -104,22 +106,28 @@ curl -X POST http://localhost:3000/api/auth/login \
 backend/
 ├── src/
 │   ├── config/
-│   │   └── database.js
+│   │   └── db.js
 │   ├── controllers/
 │   │   ├── authController.js
 │   │   ├── clientController.js
 │   │   ├── receiptController.js
-│   │   └── subscriptionController.js
+│   │   ├── subscriptionController.js
+│   │   └── superAdminController.js
 │   ├── middleware/
 │   │   └── auth.js
+│   ├── models/
+│   │   ├── Client.js
+│   │   ├── Receipt.js
+│   │   ├── Subscription.js
+│   │   ├── SuperAdmin.js
+│   │   └── User.js
 │   ├── routes/
 │   │   ├── auth.js
 │   │   ├── clients.js
 │   │   ├── receipts.js
-│   │   └── subscription.js
+│   │   ├── subscription.js
+│   │   └── superAdmin.js
 │   └── server.js
-├── database/
-│   └── gym_hub.db
 ├── .env
 ├── package.json
 └── README.md

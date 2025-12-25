@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
-const db = require('../config/database');
+const Client = require('../models/Client');
+const Receipt = require('../models/Receipt');
 
 // Helper functions
 const calculateEndDate = (startDate, membershipType) => {
@@ -20,29 +21,31 @@ const generateReceiptId = () => {
 };
 
 // Get all clients for user
-exports.getAllClients = (req, res) => {
-  db.all(
-    'SELECT * FROM clients WHERE user_id = ? ORDER BY created_at DESC',
-    [req.userId],
-    (err, clients) => {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Database error' });
-      }
+exports.getAllClients = async (req, res) => {
+  try {
+    let clients = await Client.find({ user_id: req.userId }).sort({ created_at: -1 });
 
-      // Update is_active status
-      const now = new Date();
-      clients = clients.map(client => ({
-        ...client,
-        is_active: new Date(client.end_date) > now ? 1 : 0
-      }));
+    // Update is_active status
+    const now = new Date();
+    clients = clients.map(client => {
+      const clientObj = client.toObject(); // Convert to plain object to modify
+      // Re-apply the id transformation manually since toObject might not do it depending on options
+      clientObj.id = clientObj._id;
+      delete clientObj._id;
+      delete clientObj.__v;
+      
+      clientObj.is_active = new Date(client.end_date) > now ? 1 : 0;
+      return clientObj;
+    });
 
-      res.json({ success: true, clients });
-    }
-  );
+    res.json({ success: true, clients });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };
 
 // Add new client
-exports.addClient = (req, res) => {
+exports.addClient = async (req, res) => {
   try {
     const { name, phone, email, photo, membershipType, startDate, endDate: customEndDate, fee: customFee } = req.body;
 
@@ -58,39 +61,38 @@ exports.addClient = (req, res) => {
     const fee = customFee !== undefined ? customFee : getMembershipFee(membershipType);
 
     // Insert client with photo
-    db.run(
-      `INSERT INTO clients (id, user_id, name, phone, email, photo, membership_type, start_date, end_date, fee, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [clientId, req.userId, name, phone, email || null, photo || null, membershipType, startDate, endDate, fee, 1],
-      function(err) {
-        if (err) {
-          console.error('Database error adding client:', err);
-          return res.status(500).json({ success: false, error: 'Failed to add client: ' + err.message });
-        }
+    const client = await Client.create({
+      _id: clientId,
+      user_id: req.userId,
+      name,
+      phone,
+      email: email || null,
+      photo: photo || null,
+      membership_type: membershipType,
+      start_date: startDate,
+      end_date: endDate,
+      fee,
+      is_active: 1
+    });
 
-        // Generate receipt
-        const receiptId = generateReceiptId();
-        db.run(
-          `INSERT INTO receipts (id, client_id, user_id, client_name, amount, membership_type, start_date, end_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [receiptId, clientId, req.userId, name, fee, membershipType, startDate, endDate],
-          (err) => {
-            if (err) console.error('Failed to create receipt:', err);
+    // Generate receipt
+    const receiptId = generateReceiptId();
+    const receipt = await Receipt.create({
+      _id: receiptId,
+      client_id: clientId,
+      user_id: req.userId,
+      client_name: name,
+      amount: fee,
+      membership_type: membershipType,
+      start_date: startDate,
+      end_date: endDate
+    });
 
-            // Get the created client
-            db.get('SELECT * FROM clients WHERE id = ?', [clientId], (err, client) => {
-              db.get('SELECT * FROM receipts WHERE id = ?', [receiptId], (err, receipt) => {
-                res.status(201).json({
-                  success: true,
-                  client,
-                  receipt
-                });
-              });
-            });
-          }
-        );
-      }
-    );
+    res.status(201).json({
+      success: true,
+      client,
+      receipt
+    });
   } catch (error) {
     console.error('Add client error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -98,68 +100,58 @@ exports.addClient = (req, res) => {
 };
 
 // Update client
-exports.updateClient = (req, res) => {
+exports.updateClient = async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
 
-  const fields = [];
-  const values = [];
-
+  // Filter out undefined updates
+  const cleanUpdates = {};
   Object.keys(updates).forEach(key => {
     if (updates[key] !== undefined) {
-      fields.push(`${key} = ?`);
-      values.push(updates[key]);
+      cleanUpdates[key] = updates[key];
     }
   });
 
-  if (fields.length === 0) {
+  if (Object.keys(cleanUpdates).length === 0) {
     return res.status(400).json({ success: false, error: 'No fields to update' });
   }
 
-  values.push(id, req.userId);
+  try {
+    const client = await Client.findOneAndUpdate(
+      { _id: id, user_id: req.userId },
+      cleanUpdates,
+      { new: true }
+    );
 
-  db.run(
-    `UPDATE clients SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
-    values,
-    function(err) {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Failed to update client' });
-      }
-
-      if (this.changes === 0) {
-        return res.status(404).json({ success: false, error: 'Client not found' });
-      }
-
-      db.get('SELECT * FROM clients WHERE id = ?', [id], (err, client) => {
-        res.json({ success: true, client });
-      });
+    if (!client) {
+      return res.status(404).json({ success: false, error: 'Client not found' });
     }
-  );
+
+    res.json({ success: true, client });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update client' });
+  }
 };
 
 // Delete client
-exports.deleteClient = (req, res) => {
+exports.deleteClient = async (req, res) => {
   const { id } = req.params;
 
-  db.run(
-    'DELETE FROM clients WHERE id = ? AND user_id = ?',
-    [id, req.userId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Failed to delete client' });
-      }
+  try {
+    const client = await Client.findOneAndDelete({ _id: id, user_id: req.userId });
 
-      if (this.changes === 0) {
-        return res.status(404).json({ success: false, error: 'Client not found' });
-      }
-
-      res.json({ success: true, message: 'Client deleted successfully' });
+    if (!client) {
+      return res.status(404).json({ success: false, error: 'Client not found' });
     }
-  );
+
+    res.json({ success: true, message: 'Client deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to delete client' });
+  }
 };
 
 // Renew membership
-exports.renewMembership = (req, res) => {
+exports.renewMembership = async (req, res) => {
   const { id } = req.params;
   const { membershipType } = req.body;
 
@@ -171,40 +163,42 @@ exports.renewMembership = (req, res) => {
   const endDate = calculateEndDate(startDate, membershipType);
   const fee = getMembershipFee(membershipType);
 
-  db.run(
-    `UPDATE clients SET membership_type = ?, start_date = ?, end_date = ?, fee = ?, is_active = 1
-     WHERE id = ? AND user_id = ?`,
-    [membershipType, startDate, endDate, fee, id, req.userId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Failed to renew membership' });
-      }
+  try {
+    const client = await Client.findOneAndUpdate(
+      { _id: id, user_id: req.userId },
+      {
+        membership_type: membershipType,
+        start_date: startDate,
+        end_date: endDate,
+        fee,
+        is_active: 1
+      },
+      { new: true }
+    );
 
-      if (this.changes === 0) {
-        return res.status(404).json({ success: false, error: 'Client not found' });
-      }
-
-      // Get client name
-      db.get('SELECT name FROM clients WHERE id = ?', [id], (err, client) => {
-        // Generate receipt
-        const receiptId = generateReceiptId();
-        db.run(
-          `INSERT INTO receipts (id, client_id, user_id, client_name, amount, membership_type, start_date, end_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [receiptId, id, req.userId, client.name, fee, membershipType, startDate, endDate],
-          (err) => {
-            db.get('SELECT * FROM clients WHERE id = ?', [id], (err, updatedClient) => {
-              db.get('SELECT * FROM receipts WHERE id = ?', [receiptId], (err, receipt) => {
-                res.json({
-                  success: true,
-                  client: updatedClient,
-                  receipt
-                });
-              });
-            });
-          }
-        );
-      });
+    if (!client) {
+      return res.status(404).json({ success: false, error: 'Client not found' });
     }
-  );
+
+    // Generate receipt
+    const receiptId = generateReceiptId();
+    const receipt = await Receipt.create({
+      _id: receiptId,
+      client_id: id,
+      user_id: req.userId,
+      client_name: client.name,
+      amount: fee,
+      membership_type: membershipType,
+      start_date: startDate,
+      end_date: endDate
+    });
+
+    res.json({
+      success: true,
+      client,
+      receipt
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to renew membership' });
+  }
 };

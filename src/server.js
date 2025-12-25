@@ -13,7 +13,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Initialize database
-require('./config/database');
+const connectDB = require('./config/db');
+connectDB();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

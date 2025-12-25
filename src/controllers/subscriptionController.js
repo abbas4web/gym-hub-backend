@@ -1,41 +1,31 @@
 const { v4: uuidv4 } = require('uuid');
-const db = require('../config/database');
+const Subscription = require('../models/Subscription');
+const Client = require('../models/Client');
 
 // Get user subscription
-exports.getSubscription = (req, res) => {
-  db.get(
-    'SELECT * FROM subscriptions WHERE user_id = ?',
-    [req.userId],
-    (err, subscription) => {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Database error' });
-      }
+exports.getSubscription = async (req, res) => {
+  try {
+    let subscription = await Subscription.findOne({ user_id: req.userId });
 
-      if (!subscription) {
-        // Create default subscription if not exists
-        const subscriptionId = uuidv4();
-        db.run(
-          'INSERT INTO subscriptions (id, user_id, plan, start_date) VALUES (?, ?, ?, ?)',
-          [subscriptionId, req.userId, 'free', new Date().toISOString()],
-          (err) => {
-            if (err) {
-              return res.status(500).json({ success: false, error: 'Failed to create subscription' });
-            }
-
-            db.get('SELECT * FROM subscriptions WHERE id = ?', [subscriptionId], (err, newSub) => {
-              res.json({ success: true, subscription: newSub });
-            });
-          }
-        );
-      } else {
-        res.json({ success: true, subscription });
-      }
+    if (!subscription) {
+      // Create default subscription if not exists
+      const subscriptionId = uuidv4();
+      subscription = await Subscription.create({
+        _id: subscriptionId,
+        user_id: req.userId,
+        plan: 'free',
+        start_date: new Date().toISOString()
+      });
     }
-  );
+
+    res.json({ success: true, subscription });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };
 
 // Update subscription
-exports.updateSubscription = (req, res) => {
+exports.updateSubscription = async (req, res) => {
   const { plan, billingCycle } = req.body;
 
   if (!plan) {
@@ -44,29 +34,28 @@ exports.updateSubscription = (req, res) => {
 
   const startDate = new Date().toISOString();
 
-  db.run(
-    `UPDATE subscriptions SET plan = ?, billing_cycle = ?, start_date = ?, is_active = 1
-     WHERE user_id = ?`,
-    [plan, billingCycle || 'monthly', startDate, req.userId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Failed to update subscription' });
-      }
+  try {
+    const subscription = await Subscription.findOneAndUpdate(
+      { user_id: req.userId },
+      {
+        plan,
+        billing_cycle: billingCycle || 'monthly',
+        start_date: startDate,
+        is_active: 1
+      },
+      { new: true, upsert: true } // Create if doesn't exist, though it should usually exist
+    );
 
-      db.get('SELECT * FROM subscriptions WHERE user_id = ?', [req.userId], (err, subscription) => {
-        res.json({ success: true, subscription });
-      });
-    }
-  );
+    res.json({ success: true, subscription });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update subscription' });
+  }
 };
 
 // Check if user can add client (based on plan limits)
-exports.canAddClient = (req, res) => {
-  db.get('SELECT plan FROM subscriptions WHERE user_id = ?', [req.userId], (err, subscription) => {
-    if (err) {
-      return res.status(500).json({ success: false, error: 'Database error' });
-    }
-
+exports.canAddClient = async (req, res) => {
+  try {
+    const subscription = await Subscription.findOne({ user_id: req.userId });
     const plan = subscription?.plan || 'free';
 
     if (plan !== 'free') {
@@ -74,13 +63,11 @@ exports.canAddClient = (req, res) => {
     }
 
     // Check client count for free plan
-    db.get('SELECT COUNT(*) as count FROM clients WHERE user_id = ?', [req.userId], (err, result) => {
-      if (err) {
-        return res.status(500).json({ success: false, error: 'Database error' });
-      }
-
-      const canAdd = result.count < 10;
-      res.json({ success: true, canAdd, currentCount: result.count, limit: 10 });
-    });
-  });
+    const count = await Client.countDocuments({ user_id: req.userId });
+    const canAdd = count < 10;
+    
+    res.json({ success: true, canAdd, currentCount: count, limit: 10 });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database error' });
+  }
 };
