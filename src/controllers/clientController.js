@@ -47,9 +47,9 @@ exports.getAllClients = async (req, res) => {
 // Add new client
 exports.addClient = async (req, res) => {
   try {
-    const { name, phone, email, photo, membershipType, startDate, endDate: customEndDate, fee: customFee } = req.body;
+    const { name, phone, email, photo, adharPhoto, membershipType, startDate, endDate: customEndDate, fee: customFee } = req.body;
 
-    console.log('Add client request:', { name, phone, email, membershipType, startDate, customEndDate, customFee, hasPhoto: !!photo });
+    console.log('Add client request:', { name, phone, email, membershipType, startDate, customEndDate, customFee, hasPhoto: !!photo, hasAdhar: !!adharPhoto });
 
     if (!name || !phone || !membershipType || !startDate) {
       return res.status(400).json({ success: false, error: 'Required fields missing' });
@@ -68,6 +68,7 @@ exports.addClient = async (req, res) => {
       phone,
       email: email || null,
       photo: photo || null,
+      adhar_photo: adharPhoto || null,
       membership_type: membershipType,
       start_date: startDate,
       end_date: endDate,

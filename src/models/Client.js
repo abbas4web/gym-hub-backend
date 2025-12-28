@@ -27,6 +27,10 @@ const clientSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  adhar_photo: {
+    type: String,
+    default: null
+  },
   membership_type: {
     type: String,
     required: true
