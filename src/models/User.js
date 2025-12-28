@@ -36,6 +36,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  gym_logo: {
+    type: String,
+    default: null
+  },
+  membership_plans: [{
+    name: String,
+    duration: Number,
+    fee: Number
+  }],
   created_at: {
     type: Date,
     default: Date.now

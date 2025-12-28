@@ -7,7 +7,7 @@ const Subscription = require('../models/Subscription');
 // Signup
 exports.signup = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, gymName, gymLogo, membershipPlans } = req.body;
 
     // Validate input
     if (!name || !email || !password) {
@@ -29,7 +29,10 @@ exports.signup = async (req, res) => {
       _id: userId,
       name,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      gym_name: gymName,
+      gym_logo: gymLogo,
+      membership_plans: membershipPlans
     });
 
     console.log('User created successfully:', userId);
@@ -53,7 +56,15 @@ exports.signup = async (req, res) => {
     res.status(201).json({
       success: true,
       token,
-      user: { id: userId, name, email, profile_image: null }
+      user: { 
+        id: userId, 
+        name, 
+        email, 
+        profile_image: null,
+        gym_name: gymName,
+        gym_logo: gymLogo,
+        membership_plans: membershipPlans
+      }
     });
   } catch (error) {
     console.error('Signup error:', error);
