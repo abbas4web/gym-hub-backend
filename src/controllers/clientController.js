@@ -23,7 +23,16 @@ const generateReceiptId = () => {
 // Get all clients for user
 exports.getAllClients = async (req, res) => {
   try {
-    let clients = await Client.find({ user_id: req.userId }).sort({ created_at: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const total = await Client.countDocuments({ user_id: req.userId });
+    
+    let clients = await Client.find({ user_id: req.userId })
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit);
 
     // Update is_active status
     const now = new Date();
@@ -38,7 +47,16 @@ exports.getAllClients = async (req, res) => {
       return clientObj;
     });
 
-    res.json({ success: true, clients });
+    res.json({ 
+      success: true, 
+      clients,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Database error' });
   }
