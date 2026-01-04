@@ -121,24 +121,28 @@ exports.addClient = async (req, res) => {
 // Update client
 exports.updateClient = async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+  const { name, phone, email, photo, adharPhoto, membershipType, startDate, endDate, fee } = req.body;
 
-  // Filter out undefined updates
-  const cleanUpdates = {};
-  Object.keys(updates).forEach(key => {
-    if (updates[key] !== undefined) {
-      cleanUpdates[key] = updates[key];
-    }
-  });
+  // Build update object
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (phone !== undefined) updates.phone = phone;
+  if (email !== undefined) updates.email = email;
+  if (photo !== undefined) updates.photo = photo;
+  if (adharPhoto !== undefined) updates.adhar_photo = adharPhoto;
+  if (membershipType !== undefined) updates.membership_type = membershipType;
+  if (startDate !== undefined) updates.start_date = startDate;
+  if (endDate !== undefined) updates.end_date = endDate;
+  if (fee !== undefined) updates.fee = fee;
 
-  if (Object.keys(cleanUpdates).length === 0) {
+  if (Object.keys(updates).length === 0) {
     return res.status(400).json({ success: false, error: 'No fields to update' });
   }
 
   try {
     const client = await Client.findOneAndUpdate(
       { _id: id, user_id: req.userId },
-      cleanUpdates,
+      updates,
       { new: true }
     );
 
