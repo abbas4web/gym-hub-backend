@@ -7,7 +7,7 @@ const Subscription = require('../models/Subscription');
 // Signup
 exports.signup = async (req, res) => {
   try {
-    const { name, email, password, gymName, gymLogo, membershipPlans } = req.body;
+    const { name, email, password, gymName, gymAddress, gymType, gymLogo, membershipPlans } = req.body;
 
     // Validate input
     if (!name || !email || !password) {
@@ -31,6 +31,8 @@ exports.signup = async (req, res) => {
       email,
       password: hashedPassword,
       gym_name: gymName,
+      gym_address: gymAddress,
+      gym_type: gymType || 'unisex',
       gym_logo: gymLogo,
       membership_plans: membershipPlans
     });
@@ -62,6 +64,8 @@ exports.signup = async (req, res) => {
         email, 
         profile_image: null,
         gym_name: gymName,
+        gym_address: gymAddress,
+        gym_type: gymType || 'unisex',
         gym_logo: gymLogo,
         membership_plans: membershipPlans
       }

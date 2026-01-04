@@ -36,6 +36,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  gym_address: {
+    type: String,
+    default: null
+  },
+  gym_type: {
+    type: String,
+    enum: ['male', 'female', 'unisex'],
+    default: 'unisex'
+  },
   gym_logo: {
     type: String,
     default: null
