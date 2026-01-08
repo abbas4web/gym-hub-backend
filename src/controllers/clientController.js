@@ -156,16 +156,25 @@ exports.addClient = async (req, res) => {
       // 5. Send WhatsApp (Disabled for now - switching to Frontend-based redirect)
       // await sendWhatsAppReceipt(phone, receiptUrl, name);
 
+      // 5. Construct WhatsApp Message
+      const whatsappMessage = `Hello ${name}, welcome to ${gymName}! Here is your admission receipt. Thank you for joining our fitness club! ${receipt.receipt_url || receiptUrl}`;
+
+      res.status(201).json({
+        success: true,
+        client,
+        receipt: receipt.toObject ? receipt.toObject() : receipt, // Ensure virtuals/fields are serialized
+        whatsapp_message: whatsappMessage // Include pre-built message
+      });
     } catch (automationError) {
       console.error('Receipt Automation Failed:', automationError.message);
-      // We purposefully do NOT return an error here, as the client is already added successfully.
+      // Even if automation fails, return success but with a fallback message
+      res.status(201).json({
+        success: true,
+        client,
+        receipt: receipt.toObject ? receipt.toObject() : receipt,
+        whatsapp_message: `Hello ${name}, welcome to ${gymName || 'Gym Hub'}! Here is your receipt.` // Fallback
+      });
     }
-
-    res.status(201).json({
-      success: true,
-      client,
-      receipt: receipt.toObject ? receipt.toObject() : receipt // Ensure virtuals/fields are serialized
-    });
   } catch (error) {
     console.error('Add client error:', error);
     res.status(500).json({ success: false, error: error.message });
