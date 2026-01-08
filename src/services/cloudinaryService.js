@@ -26,7 +26,8 @@ const uploadToCloudinary = (buffer, folder, publicId) => {
       {
         folder: folder,
         public_id: publicId,
-        resource_type: 'auto',
+        resource_type: 'raw', // Force 'raw' for PDFs to ensure they download correctly
+        format: 'pdf',        // Explicitly set format
       },
       (error, result) => {
         if (error) {
