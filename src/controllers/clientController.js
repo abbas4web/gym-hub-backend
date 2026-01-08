@@ -104,11 +104,13 @@ exports.addClient = async (req, res) => {
       console.log('Generating PDF...');
       const pdfBuffer = await generateReceiptPDF({
         gymName,
+        gymAddress: user?.gym_address, // Pass address from user model if exists
         clientName: name,
         phone,
         plan: membershipType,
         amount: fee,
         startDate,
+        endDate, // Pass calculated end date
         receiptId
       });
       console.log('PDF Generated. Size:', pdfBuffer.length);
