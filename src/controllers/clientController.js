@@ -1,3 +1,4 @@
+const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const Client = require('../models/Client');
 const Receipt = require('../models/Receipt');
@@ -96,21 +97,32 @@ exports.addClient = async (req, res) => {
     // --- Automated Receipt Flow (PDF -> Cloudinary) ---
     // We run this *synchronously* now to ensure receipt_url is in the response
     try {
-      // 1. Fetch Gym Name
+      // 1. Fetch Gym Name and Logo
       const user = await User.findById(req.userId);
       const gymName = user?.gym_name || user?.name || 'Gym Hub';
+      let gymLogoBuffer = null;
+
+      if (user?.gym_logo) {
+        try {
+          const logoResponse = await axios.get(user.gym_logo, { responseType: 'arraybuffer' });
+          gymLogoBuffer = logoResponse.data;
+        } catch (logoErr) {
+          console.error('Failed to fetch gym logo:', logoErr.message);
+        }
+      }
 
       // 2. Generate PDF
       console.log('Generating PDF...');
       const pdfBuffer = await generateReceiptPDF({
         gymName,
-        gymAddress: user?.gym_address, // Pass address from user model if exists
+        gymAddress: user?.gym_address,
+        gymLogoBuffer, // Pass the image buffer
         clientName: name,
         phone,
         plan: membershipType,
         amount: fee,
         startDate,
-        endDate, // Pass calculated end date
+        endDate,
         receiptId
       });
       console.log('PDF Generated. Size:', pdfBuffer.length);
