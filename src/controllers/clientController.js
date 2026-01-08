@@ -115,8 +115,21 @@ exports.addClient = async (req, res) => {
       const receiptUrl = await uploadToCloudinary(pdfBuffer, 'gym-receipts', receiptId);
 
       // 4. Update Receipt with URL
-      await Receipt.findByIdAndUpdate(receiptId, { receipt_url: receiptUrl });
-      receipt.receipt_url = receiptUrl; // Update local object for response
+      // Use findOneAndUpdate with { new: true } to get the updated document back
+      // Wait for it to complete
+      const updatedReceipt = await Receipt.findOneAndUpdate(
+        { _id: receiptId }, 
+        { receipt_url: receiptUrl },
+        { new: true }
+      );
+      
+      // Update our local reference for the response
+      if (updatedReceipt) {
+        receipt.receipt_url = updatedReceipt.receipt_url;
+      } else {
+        // Fallback if DB update somehow failed but upload worked
+        receipt.receipt_url = receiptUrl;
+      }
 
       // 5. Send WhatsApp (Disabled for now - switching to Frontend-based redirect)
       // await sendWhatsAppReceipt(phone, receiptUrl, name);
