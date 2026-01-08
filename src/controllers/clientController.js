@@ -1,6 +1,10 @@
 const { v4: uuidv4 } = require('uuid');
 const Client = require('../models/Client');
 const Receipt = require('../models/Receipt');
+const User = require('../models/User');
+const { generateReceiptPDF } = require('../services/pdfService');
+const { uploadToCloudinary } = require('../services/cloudinaryService');
+const { sendWhatsAppReceipt } = require('../services/whatsappService');
 
 // Helper functions
 const calculateEndDate = (startDate, membershipType) => {
@@ -88,6 +92,39 @@ exports.addClient = async (req, res) => {
       start_date: startDate,
       end_date: endDate
     });
+
+    // --- Automated Receipt Flow (PDF -> Cloudinary -> WhatsApp) ---
+    // We run this asynchronously or await it but catch errors so we don't fail the admission
+    try {
+      // 1. Fetch Gym Name
+      const user = await User.findById(req.userId);
+      const gymName = user?.gym_name || user?.name || 'Gym Hub';
+
+      // 2. Generate PDF
+      const pdfBuffer = await generateReceiptPDF({
+        gymName,
+        clientName: name,
+        phone,
+        plan: membershipType,
+        amount: fee,
+        startDate,
+        receiptId
+      });
+
+      // 3. Upload to Cloudinary
+      const receiptUrl = await uploadToCloudinary(pdfBuffer, 'gym-receipts', receiptId);
+
+      // 4. Update Receipt with URL
+      await Receipt.findByIdAndUpdate(receiptId, { receipt_url: receiptUrl });
+      receipt.receipt_url = receiptUrl; // Update local object for response
+
+      // 5. Send WhatsApp (Disabled for now - switching to Frontend-based redirect)
+      // await sendWhatsAppReceipt(phone, receiptUrl, name);
+
+    } catch (automationError) {
+      console.error('Receipt Automation Failed:', automationError.message);
+      // We purposefully do NOT return an error here, as the client is already added successfully.
+    }
 
     res.status(201).json({
       success: true,
@@ -197,6 +234,9 @@ exports.renewMembership = async (req, res) => {
       start_date: startDate,
       end_date: endDate
     });
+
+    // We can also trigger automation here for renewals if desired, but user asked for "admission/register-client flow".
+    // I'll leave it out for now to strictly follow "Extend the current admission / register-client flow".
 
     res.json({
       success: true,
