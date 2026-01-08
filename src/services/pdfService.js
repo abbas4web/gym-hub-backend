@@ -68,7 +68,7 @@ const generateReceiptPDF = (data) => {
          .text('AMOUNT PAID', 0, amountY, { align: 'center' });
       
       doc.font('Helvetica-Bold').fontSize(36).fillColor(PRIMARY_COLOR)
-         .text(`₹. ${data.amount.toLocaleString('en-IN')}`, 0, amountY + 20, { align: 'center' });
+         .text(`Rs. ${data.amount.toLocaleString('en-IN')}`, 0, amountY + 20, { align: 'center' });
       
       doc.font('Helvetica').fontSize(10).fillColor('#888888')
          .text(new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), 0, amountY + 65, { align: 'center' });
@@ -122,9 +122,9 @@ const generateReceiptPDF = (data) => {
       currentY += 50;
       drawSectionHeader('Payment Summary', currentY);
       currentY += 35;
-      drawRow('Membership Fee', `₹. ${data.amount.toLocaleString('en-IN')}`, currentY);
+      drawRow('Membership Fee', `Rs. ${data.amount.toLocaleString('en-IN')}`, currentY);
       currentY += 25;
-      drawRow('Tax (0%)', '₹ 0', currentY);
+      drawRow('Tax (0%)', 'Rs. 0', currentY);
       
       
       // --- 5. TOTAL BAR (Green Background at bottom of content) ---
@@ -135,7 +135,7 @@ const generateReceiptPDF = (data) => {
          .text('Total Paid', 70, totalBarY + 14);
       
       doc.font('Helvetica-Bold').fontSize(14).fillColor(PRIMARY_COLOR)
-         .text(`₹. ${data.amount.toLocaleString('en-IN')}`, 70, totalBarY + 12, { align: 'right', width: 455 });
+         .text(`Rs. ${data.amount.toLocaleString('en-IN')}`, 70, totalBarY + 12, { align: 'right', width: 455 });
 
 
       // --- FOOTER ---
