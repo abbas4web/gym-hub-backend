@@ -93,8 +93,8 @@ exports.addClient = async (req, res) => {
       end_date: endDate
     });
 
-    // --- Automated Receipt Flow (PDF -> Cloudinary -> WhatsApp) ---
-    // We run this asynchronously or await it but catch errors so we don't fail the admission
+    // --- Automated Receipt Flow (PDF -> Cloudinary) ---
+    // We run this *synchronously* now to ensure receipt_url is in the response
     try {
       // 1. Fetch Gym Name
       const user = await User.findById(req.userId);
@@ -129,7 +129,7 @@ exports.addClient = async (req, res) => {
     res.status(201).json({
       success: true,
       client,
-      receipt
+      receipt: receipt.toObject ? receipt.toObject() : receipt // Ensure virtuals/fields are serialized
     });
   } catch (error) {
     console.error('Add client error:', error);
