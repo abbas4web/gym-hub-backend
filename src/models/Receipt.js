@@ -37,6 +37,10 @@ const receiptSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  receipt_url: {
+    type: String, // URL of the generated receipt PDF
+    default: null
+  },
   generated_at: {
     type: Date,
     default: Date.now
