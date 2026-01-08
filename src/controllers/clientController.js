@@ -101,6 +101,7 @@ exports.addClient = async (req, res) => {
       const gymName = user?.gym_name || user?.name || 'Gym Hub';
 
       // 2. Generate PDF
+      console.log('Generating PDF...');
       const pdfBuffer = await generateReceiptPDF({
         gymName,
         clientName: name,
@@ -110,9 +111,16 @@ exports.addClient = async (req, res) => {
         startDate,
         receiptId
       });
+      console.log('PDF Generated. Size:', pdfBuffer.length);
 
       // 3. Upload to Cloudinary
+      console.log('Uploading to Cloudinary...');
       const receiptUrl = await uploadToCloudinary(pdfBuffer, 'gym-receipts', receiptId);
+      console.log('Cloudinary Upload Result:', receiptUrl);
+
+      if (!receiptUrl) {
+        throw new Error('Cloudinary returned null/undefined URL');
+      }
 
       // 4. Update Receipt with URL
       // Use findOneAndUpdate with { new: true } to get the updated document back
