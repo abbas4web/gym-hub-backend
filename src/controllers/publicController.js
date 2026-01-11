@@ -79,9 +79,16 @@ exports.getTermsPage = async (req, res) => {
                   <div class="container" style="text-align: center;">
                     <h1 style="color: #4CAF50;">Membership Activated!</h1>
                     <p>Thank you for accepting the terms.</p>
-                    <a href="\${data.receipt_url}" class="btn" target="_blank">Download Receipt</a>
+                    <div style="margin: 30px 0;">
+                      <a href="\${data.receipt_url}" class="btn" style="background-color: #2196F3; font-size: 20px; padding: 20px;" target="_blank">
+                        📥 Download Receipt PDF
+                      </a>
+                    </div>
+                    <p style="color: #666; font-size: 14px;">(Click above to save your receipt)</p>
                   </div>
                 \`;
+                // Auto-open in new tab as backup
+                // window.open(data.receipt_url, '_blank');
               } else {
                 status.innerText = 'Error: ' + (data.error || 'Something went wrong');
                 btn.disabled = false;
