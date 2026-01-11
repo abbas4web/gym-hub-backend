@@ -78,13 +78,24 @@ exports.getTermsPage = async (req, res) => {
                 document.body.innerHTML = \`
                   <div class="container" style="text-align: center;">
                     <h1 style="color: #4CAF50;">Membership Activated!</h1>
-                    <p>Thank you for accepting the terms.</p>
-                    <div style="margin: 30px 0;">
-                      <a href="\${data.receipt_url}" class="btn" style="background-color: #2196F3; font-size: 20px; padding: 20px;" target="_blank">
-                        📥 Download Receipt PDF
-                      </a>
-                    </div>
-                    <p style="color: #666; font-size: 14px;">(Click above to save your receipt)</p>
+                    <p style="margin-bottom: 30px;">Thank you for accepting the terms.</p>
+                    
+                    <a href="\${data.receipt_url}" class="btn" style="
+                        background-color: #4CAF50; 
+                        font-size: 18px; 
+                        padding: 15px 20px; 
+                        display: inline-block; 
+                        width: auto; 
+                        max-width: 100%;
+                        white-space: nowrap;
+                        text-decoration: none;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                      " target="_blank">
+                        📥 Download Receipt
+                    </a>
+                    
+                    <p style="color: #888; font-size: 13px; margin-top: 20px;">(Receipt will auto-download shortly)</p>
                   </div>
                 \`;
                 // Auto-open in new tab to trigger download/view
