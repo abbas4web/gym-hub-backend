@@ -33,6 +33,7 @@ app.use('/api/receipts', require('./routes/receipts'));
 app.use('/api/subscription', require('./routes/subscription'));
 app.use('/api/super-admin', require('./routes/superAdmin'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/workers', require('./routes/workerRoutes')); // New Worker Management Routes
 app.use('/api/public', require('./routes/publicRoutes')); // New public routes for terms acceptance
 
 // Health check

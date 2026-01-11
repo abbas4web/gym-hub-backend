@@ -25,16 +25,20 @@ const generateReceiptId = () => {
   return `RCP-${timestamp}-${random}`;
 };
 
-// Get all clients for user
+// Get all clients for user (Owner or Worker)
 exports.getAllClients = async (req, res) => {
   try {
-    let clients = await Client.find({ user_id: req.userId }).sort({ created_at: -1 });
+    // If worker, use owner_id. If owner, use _id.
+    const ownerId = req.user.role === 'worker' ? req.user.owner_id : req.user._id;
+
+    let clients = await Client.find({ user_id: ownerId })
+      .sort({ created_at: -1 })
+      .populate('created_by', 'name role'); // Populate creator info
 
     // Update is_active status
     const now = new Date();
     clients = clients.map(client => {
-      const clientObj = client.toObject(); // Convert to plain object to modify
-      // Re-apply the id transformation manually since toObject might not do it depending on options
+      const clientObj = client.toObject(); 
       clientObj.id = clientObj._id;
       delete clientObj._id;
       delete clientObj.__v;
@@ -60,6 +64,9 @@ exports.addClient = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Required fields missing' });
     }
 
+    // Determine Owner ID
+    const ownerId = req.user.role === 'worker' ? req.user.owner_id : req.user._id;
+
     const clientId = uuidv4();
     // Use custom values if provided, otherwise calculate
     const endDate = customEndDate || calculateEndDate(startDate, membershipType);
@@ -68,7 +75,8 @@ exports.addClient = async (req, res) => {
     // Insert client with photo
     const client = await Client.create({
       _id: clientId,
-      user_id: req.userId,
+      user_id: ownerId, // Belongs to the Gym Owner
+      created_by: req.user._id, // Track who added it
       name,
       phone,
       // email removed as per requirement
@@ -86,7 +94,7 @@ exports.addClient = async (req, res) => {
     const receipt = await Receipt.create({
       _id: receiptId,
       client_id: clientId,
-      user_id: req.userId,
+      user_id: ownerId, // Receipt belongs to Owner
       client_name: name,
       amount: fee,
       membership_type: membershipType,
@@ -97,8 +105,8 @@ exports.addClient = async (req, res) => {
     // --- Automated Receipt Flow (PDF -> Cloudinary) ---
     // DISABLED for initial add. Receipt is now generated ONLY after terms acceptance.
     
-    // 1. Fetch Gym Name
-    const user = await User.findById(req.userId);
+    // 1. Fetch Gym Name (From Owner)
+    const user = await User.findById(ownerId);
     const gymName = user?.gym_name || user?.name || 'Gym Hub';
 
     // 2. Generate Consent Link
@@ -130,6 +138,9 @@ exports.updateClient = async (req, res) => {
   const { id } = req.params;
   const { name, phone, photo, adharPhoto, membershipType, startDate, endDate, fee } = req.body;
 
+  // Determine Owner ID
+  const ownerId = req.user.role === 'worker' ? req.user.owner_id : req.user._id;
+
   // Build update object
   const updates = {};
   if (name !== undefined) updates.name = name;
@@ -148,7 +159,7 @@ exports.updateClient = async (req, res) => {
 
   try {
     const client = await Client.findOneAndUpdate(
-      { _id: id, user_id: req.userId },
+      { _id: id, user_id: ownerId }, // Use Owner ID
       updates,
       { new: true }
     );
@@ -167,8 +178,11 @@ exports.updateClient = async (req, res) => {
 exports.deleteClient = async (req, res) => {
   const { id } = req.params;
 
+  // Determine Owner ID
+  const ownerId = req.user.role === 'worker' ? req.user.owner_id : req.user._id;
+
   try {
-    const client = await Client.findOneAndDelete({ _id: id, user_id: req.userId });
+    const client = await Client.findOneAndDelete({ _id: id, user_id: ownerId }); // Use Owner ID
 
     if (!client) {
       return res.status(404).json({ success: false, error: 'Client not found' });
@@ -185,6 +199,9 @@ exports.renewMembership = async (req, res) => {
   const { id } = req.params;
   const { membershipType } = req.body;
 
+  // Determine Owner ID
+  const ownerId = req.user.role === 'worker' ? req.user.owner_id : req.user._id;
+
   if (!membershipType) {
     return res.status(400).json({ success: false, error: 'Membership type required' });
   }
@@ -195,7 +212,7 @@ exports.renewMembership = async (req, res) => {
 
   try {
     const client = await Client.findOneAndUpdate(
-      { _id: id, user_id: req.userId },
+      { _id: id, user_id: ownerId }, // Use Owner ID
       {
         membership_type: membershipType,
         start_date: startDate,
@@ -215,7 +232,7 @@ exports.renewMembership = async (req, res) => {
     const receipt = await Receipt.create({
       _id: receiptId,
       client_id: id,
-      user_id: req.userId,
+      user_id: ownerId, // Use Owner ID
       client_name: client.name,
       amount: fee,
       membership_type: membershipType,
