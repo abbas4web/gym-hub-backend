@@ -95,86 +95,30 @@ exports.addClient = async (req, res) => {
     });
 
     // --- Automated Receipt Flow (PDF -> Cloudinary) ---
-    // We run this *synchronously* now to ensure receipt_url is in the response
-    try {
-      // 1. Fetch Gym Name and Logo
-      const user = await User.findById(req.userId);
-      const gymName = user?.gym_name || user?.name || 'Gym Hub';
-      let gymLogoBuffer = null;
+    // DISABLED for initial add. Receipt is now generated ONLY after terms acceptance.
+    
+    // 1. Fetch Gym Name
+    const user = await User.findById(req.userId);
+    const gymName = user?.gym_name || user?.name || 'Gym Hub';
 
-      if (user?.gym_logo) {
-        try {
-          const logoResponse = await axios.get(user.gym_logo, { responseType: 'arraybuffer' });
-          gymLogoBuffer = logoResponse.data;
-        } catch (logoErr) {
-          console.error('Failed to fetch gym logo:', logoErr.message);
-        }
-      }
+    // 2. Generate Consent Link
+    // Assuming backend URL is set in env, or construct dynamically
+    // For Vercel, it's usually https://your-app.vercel.app
+    const backendUrl = process.env.BACKEND_URL || `https://${req.get('host')}`;
+    const consentLink = `${backendUrl}/api/public/terms/${client._id}`;
 
-      // 2. Generate PDF
-      console.log('Generating PDF...');
-      const pdfBuffer = await generateReceiptPDF({
-        gymName,
-        gymAddress: user?.gym_address,
-        gymLogoBuffer, // Pass the image buffer
-        clientName: name,
-        phone,
-        plan: membershipType,
-        amount: fee,
-        startDate,
-        endDate,
-        receiptId
-      });
-      console.log('PDF Generated. Size:', pdfBuffer.length);
+    // 3. Construct WhatsApp Message (Consent First)
+    const whatsappMessage = `Hello ${name}, welcome to ${gymName}! Please accept our Terms & Conditions to activate your membership and receive your receipt: ${consentLink}`;
 
-      // 3. Upload to Cloudinary
-      console.log('Uploading to Cloudinary...');
-      const receiptUrl = await uploadToCloudinary(pdfBuffer, 'gym-receipts', receiptId);
-      console.log('Cloudinary Upload Result:', receiptUrl);
+    res.status(201).json({
+      success: true,
+      client,
+      // No receipt yet
+      receipt: null, 
+      whatsapp_message: whatsappMessage,
+      consent_link: consentLink
+    });
 
-      if (!receiptUrl) {
-        throw new Error('Cloudinary returned null/undefined URL');
-      }
-
-      // 4. Update Receipt with URL
-      // Use findOneAndUpdate with { new: true } to get the updated document back
-      // Wait for it to complete
-      const updatedReceipt = await Receipt.findOneAndUpdate(
-        { _id: receiptId }, 
-        { receipt_url: receiptUrl },
-        { new: true }
-      );
-      
-      // Update our local reference for the response
-      if (updatedReceipt) {
-        receipt.receipt_url = updatedReceipt.receipt_url;
-      } else {
-        // Fallback if DB update somehow failed but upload worked
-        receipt.receipt_url = receiptUrl;
-      }
-
-      // 5. Send WhatsApp (Disabled for now - switching to Frontend-based redirect)
-      // await sendWhatsAppReceipt(phone, receiptUrl, name);
-
-      // 5. Construct WhatsApp Message
-      const whatsappMessage = `Hello ${name}, welcome to ${gymName}! Here is your admission receipt. Thank you for joining our fitness club! ${receipt.receipt_url || receiptUrl}`;
-
-      res.status(201).json({
-        success: true,
-        client,
-        receipt: receipt.toObject ? receipt.toObject() : receipt, // Ensure virtuals/fields are serialized
-        whatsapp_message: whatsappMessage // Include pre-built message
-      });
-    } catch (automationError) {
-      console.error('Receipt Automation Failed:', automationError.message);
-      // Even if automation fails, return success but with a fallback message
-      res.status(201).json({
-        success: true,
-        client,
-        receipt: receipt.toObject ? receipt.toObject() : receipt,
-        whatsapp_message: `Hello ${name}, welcome to ${gymName || 'Gym Hub'}! Here is your receipt.` // Fallback
-      });
-    }
   } catch (error) {
     console.error('Add client error:', error);
     res.status(500).json({ success: false, error: error.message });
