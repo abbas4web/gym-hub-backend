@@ -87,8 +87,10 @@ exports.getTermsPage = async (req, res) => {
                     <p style="color: #666; font-size: 14px;">(Click above to save your receipt)</p>
                   </div>
                 \`;
-                // Auto-open in new tab as backup
-                // window.open(data.receipt_url, '_blank');
+                // Auto-open in new tab to trigger download/view
+                setTimeout(() => {
+                  window.location.href = data.receipt_url; 
+                }, 1000);
               } else {
                 status.innerText = 'Error: ' + (data.error || 'Something went wrong');
                 btn.disabled = false;
