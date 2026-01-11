@@ -16,12 +16,33 @@ exports.getTermsPage = async (req, res) => {
     }
 
     if (client.terms_accepted) {
-      return res.send(`
+      // Fetch receipt to show download button
+      const receipt = await Receipt.findOne({ client_id: clientId });
+      const receiptBtn = receipt?.receipt_url ? \`
+        <div style="margin-top: 30px;">
+          <a href="\${receipt.receipt_url}" class="btn" style="
+              background-color: #4CAF50; 
+              color: white;
+              font-size: 18px; 
+              padding: 15px 20px; 
+              display: inline-block; 
+              text-decoration: none;
+              border-radius: 8px;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+              font-family: sans-serif;
+            " target="_blank">
+              View Receipt
+          </a>
+        </div>
+      \` : '';
+
+      return res.send(\`
         <div style="font-family: sans-serif; text-align: center; padding: 50px;">
           <h1 style="color: #4CAF50;">You have already accepted the terms.</h1>
           <p>Your membership is active.</p>
+          \${receiptBtn}
         </div>
-      `);
+      \`);
     }
 
     const gymName = client.user_id.gym_name || 'Fitness Center';
