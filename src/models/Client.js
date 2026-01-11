@@ -48,8 +48,16 @@ const clientSchema = new mongoose.Schema({
     required: true
   },
   is_active: {
-    type: Number, // Keeping as Number (1/0) for compatibility, though Boolean is better. Let's stick to 1/0 to minimize controller changes for now.
-    default: 1
+    type: Number, // 0: Pending, 1: Active
+    default: 0
+  },
+  terms_accepted: {
+    type: Boolean,
+    default: false
+  },
+  terms_accepted_at: {
+    type: Date,
+    default: null
   },
   created_at: {
     type: Date,
