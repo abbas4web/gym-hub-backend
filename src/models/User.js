@@ -32,6 +32,21 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  role: {
+    type: String,
+    enum: ['owner', 'worker', 'super_admin'],
+    default: 'owner'
+  },
+  owner_id: {
+    type: String, // If role is 'worker', this points to the 'owner' User ID
+    ref: 'User',
+    default: null
+  },
+  created_by: {
+    type: String,
+    ref: 'User',
+    default: null
+  },
   gym_name: {
     type: String,
     default: null

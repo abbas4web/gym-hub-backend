@@ -7,9 +7,14 @@ const clientSchema = new mongoose.Schema({
     default: uuidv4
   },
   user_id: {
-    type: String,
+    type: String, // Always points to the Gym Owner
     ref: 'User',
     required: true
+  },
+  created_by: {
+    type: String, // Points to the specific user (Owner or Worker) who added the client
+    ref: 'User',
+    default: null
   },
   name: {
     type: String,
