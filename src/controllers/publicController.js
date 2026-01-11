@@ -83,6 +83,37 @@ exports.getTermsPage = async (req, res) => {
         </div>
 
         <script>
+          async function sharePdf(url) {
+            const btn = document.getElementById('shareBtn');
+            const originalText = btn.innerText;
+            btn.innerText = 'Preparing...';
+            btn.disabled = true;
+
+            try {
+              // Fetch the PDF as a blob
+              const response = await fetch(url);
+              const blob = await response.blob();
+              const file = new File([blob], "Gym_Receipt.pdf", { type: "application/pdf" });
+
+              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                  files: [file],
+                  title: 'Gym Receipt',
+                  text: 'Here is your membership receipt.'
+                });
+              } else {
+                alert('Sharing files is not supported on this browser. Please download instead.');
+              }
+            } catch (err) {
+              console.error('Share failed:', err);
+              // Fallback: just open link
+              window.open(url, '_blank');
+            } finally {
+              btn.innerText = originalText;
+              btn.disabled = false;
+            }
+          }
+
           async function acceptTerms() {
             const btn = document.getElementById('acceptBtn');
             const status = document.getElementById('status');
@@ -101,28 +132,52 @@ exports.getTermsPage = async (req, res) => {
                     <h1 style="color: #4CAF50;">Membership Activated!</h1>
                     <p style="margin-bottom: 30px;">Thank you for accepting the terms.</p>
                     
-                    <a href="\${data.receipt_url}" class="btn" style="
-                        background-color: #4CAF50; 
-                        font-size: 18px; 
-                        padding: 15px 20px; 
-                        display: inline-block; 
-                        width: auto; 
-                        max-width: 100%;
-                        white-space: nowrap;
-                        text-decoration: none;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                      " target="_blank">
-                        📥 Download Receipt
-                    </a>
+                    <div style="display: flex; flex-direction: column; gap: 15px; align-items: center; margin-top: 20px;">
+                      
+                      <!-- Download Button -->
+                      <a href="\${data.receipt_url}" class="btn" style="
+                          background-color: #4CAF50; 
+                          font-size: 18px; 
+                          padding: 15px 30px; 
+                          display: inline-block; 
+                          width: auto; 
+                          text-decoration: none;
+                          border-radius: 8px;
+                          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        " target="_blank">
+                          📥 Download PDF
+                      </a>
+
+                      <!-- Share Button (The Trick) -->
+                      <button id="shareBtn" onclick="sharePdf('\${data.receipt_url}')" class="btn" style="
+                          background-color: #25D366; 
+                          font-size: 18px; 
+                          padding: 15px 30px; 
+                          display: none; /* Hidden by default, shown via JS if supported */
+                          width: auto; 
+                          border: none;
+                          border-radius: 8px;
+                          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                          cursor: pointer;
+                        ">
+                          � Share PDF on WhatsApp
+                      </button>
+                    </div>
                     
                     <p style="color: #888; font-size: 13px; margin-top: 20px;">(Receipt will auto-download shortly)</p>
                   </div>
                 \`;
-                // Auto-open in new tab to trigger download/view
+
+                // Check if Share API is supported and show button
+                if (navigator.share && navigator.canShare) {
+                  document.getElementById('shareBtn').style.display = 'inline-block';
+                }
+
+                // Auto-open in new tab
                 setTimeout(() => {
                   window.location.href = data.receipt_url; 
                 }, 1000);
+
               } else {
                 status.innerText = 'Error: ' + (data.error || 'Something went wrong');
                 btn.disabled = false;
