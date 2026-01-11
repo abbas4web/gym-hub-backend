@@ -5,36 +5,112 @@ const { generateReceiptPDF } = require('../services/pdfService');
 const { uploadToCloudinary } = require('../services/cloudinaryService');
 const axios = require('axios');
 
-// 1. GET /public/terms/:clientId -> Return JSON Data for Frontend UI
+// 1. GET /public/terms/:clientId -> Serve HTML Page
 exports.getTermsPage = async (req, res) => {
   try {
     const { clientId } = req.params;
     const client = await Client.findById(clientId).populate('user_id');
 
     if (!client) {
-      return res.status(404).json({ success: false, error: 'Link Expired or Invalid' });
+      return res.status(404).send('<h1>Link Expired or Invalid</h1>');
+    }
+
+    if (client.terms_accepted) {
+      return res.send(`
+        <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: #4CAF50;">You have already accepted the terms.</h1>
+          <p>Your membership is active.</p>
+        </div>
+      `);
     }
 
     const gymName = client.user_id.gym_name || 'Fitness Center';
 
-    // Return JSON data so Frontend can build the UI
-    res.json({
-      success: true,
-      gymName,
-      clientName: client.name,
-      termsAccepted: client.terms_accepted,
-      termsText: [
-        "1. Health & Safety: I confirm that I am physically fit to engage in exercise. I understand that the gym is not responsible for any injuries sustained due to lifting heavy weights without supervision.",
-        "2. Equipment Use: I agree to use equipment properly and return weights to their racks after use.",
-        "3. Conduct: I will maintain respectful behavior towards staff and other members.",
-        `4. Liability Waiver: I hereby waive ${gymName} from any liability for injuries or accidents occurring on the premises.`,
-        "5. Membership: Membership fees are non-refundable."
-      ]
-    });
+    // Simple HTML Template
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Accept Terms - ${gymName}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          h1 { color: #333; text-align: center; }
+          .terms-box { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; height: 300px; overflow-y: scroll; margin: 20px 0; font-size: 14px; color: #555; }
+          .btn { display: block; width: 100%; padding: 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; text-align: center; text-decoration: none; }
+          .btn:hover { background: #45a049; }
+          .btn:disabled { background: #ccc; cursor: not-allowed; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Welcome to ${gymName}</h1>
+          <p>Hi <strong>${client.name}</strong>, please review and accept our terms to activate your membership.</p>
+          
+          <div class="terms-box">
+            <h3>Terms and Conditions</h3>
+            <p>1. <strong>Health & Safety:</strong> I confirm that I am physically fit to engage in exercise. I understand that the gym is not responsible for any injuries sustained due to lifting heavy weights without supervision.</p>
+            <p>2. <strong>Equipment Use:</strong> I agree to use equipment properly and return weights to their racks after use.</p>
+            <p>3. <strong>Conduct:</strong> I will maintain respectful behavior towards staff and other members.</p>
+            <p>4. <strong>Liability Waiver:</strong> I hereby waive ${gymName} from any liability for injuries or accidents occurring on the premises.</p>
+            <p>5. <strong>Membership:</strong> Membership fees are non-refundable.</p>
+          </div>
 
+          <button id="acceptBtn" class="btn" onclick="acceptTerms()">I Accept & Activate Membership</button>
+          <p id="status" style="text-align: center; margin-top: 15px; color: #666;"></p>
+        </div>
+
+        <script>
+          async function acceptTerms() {
+            const btn = document.getElementById('acceptBtn');
+            const status = document.getElementById('status');
+            
+            btn.disabled = true;
+            btn.innerText = 'Processing...';
+            status.innerText = 'Activating membership and generating receipt...';
+
+            try {
+              const response = await fetch('/api/public/accept/${clientId}', { method: 'POST' });
+              const data = await response.json();
+
+              if (data.success) {
+                document.body.innerHTML = \`
+                  <div class="container" style="text-align: center;">
+                    <h1 style="color: #4CAF50;">Membership Activated!</h1>
+                    <p>Thank you for accepting the terms.</p>
+                    <div style="margin: 30px 0;">
+                      <a href="\${data.receipt_url}" class="btn" style="background-color: #2196F3; font-size: 20px; padding: 20px;" target="_blank">
+                        📥 Download Receipt PDF
+                      </a>
+                    </div>
+                    <p style="color: #666; font-size: 14px;">(Click above to save your receipt)</p>
+                  </div>
+                \`;
+                // Auto-open in new tab to trigger download/view
+                setTimeout(() => {
+                  window.location.href = data.receipt_url; 
+                }, 1000);
+              } else {
+                status.innerText = 'Error: ' + (data.error || 'Something went wrong');
+                btn.disabled = false;
+                btn.innerText = 'I Accept & Activate Membership';
+              }
+            } catch (err) {
+              status.innerText = 'Network Error. Please try again.';
+              btn.disabled = false;
+              btn.innerText = 'I Accept & Activate Membership';
+            }
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
   } catch (error) {
-    console.error('Error fetching terms data:', error);
-    res.status(500).json({ success: false, error: 'Server Error' });
+    console.error('Error serving terms page:', error);
+    res.status(500).send('Server Error');
   }
 };
 
