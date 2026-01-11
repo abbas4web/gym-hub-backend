@@ -16,11 +16,11 @@ exports.getTermsPage = async (req, res) => {
     }
 
     if (client.terms_accepted) {
-      // Fetch receipt to show download button
+      // Fetch receipt to show view button
       const receipt = await Receipt.findOne({ client_id: clientId });
-      const receiptBtn = receipt?.receipt_url ? \`
+      const receiptBtn = receipt && receipt.receipt_url ? \`
         <div style="margin-top: 30px;">
-          <a href="\${receipt.receipt_url}" class="btn" style="
+          <a href="\${receipt.receipt_url}" style="
               background-color: #4CAF50; 
               color: white;
               font-size: 18px; 
