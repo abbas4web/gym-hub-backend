@@ -107,6 +107,22 @@ exports.login = async (req, res) => {
       expiresIn: '30d'
     });
 
+    // If worker, fetch Owner details to get latest plans and gym info
+    let membershipPlans = user.membership_plans;
+    let gymName = user.gym_name;
+    let gymAddress = user.gym_address;
+    let gymLogo = user.gym_logo;
+
+    if (user.role === 'worker' && user.owner_id) {
+      const owner = await User.findById(user.owner_id);
+      if (owner) {
+        membershipPlans = owner.membership_plans;
+        gymName = owner.gym_name;
+        gymAddress = owner.gym_address;
+        gymLogo = owner.gym_logo;
+      }
+    }
+
     res.json({
       success: true,
       token,
@@ -116,7 +132,12 @@ exports.login = async (req, res) => {
         email: user.email, 
         profile_image: user.profile_image,
         role: user.role,
-        owner_id: user.owner_id
+        owner_id: user.owner_id,
+        // Send Owner's latest info
+        membership_plans: membershipPlans,
+        gym_name: gymName,
+        gym_address: gymAddress,
+        gym_logo: gymLogo
       }
     });
   } catch (error) {
@@ -127,10 +148,24 @@ exports.login = async (req, res) => {
 // Get current user
 exports.getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    let user = await User.findById(req.userId).select('-password');
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // If worker, fetch Owner details to get latest plans
+    if (user.role === 'worker' && user.owner_id) {
+      const owner = await User.findById(user.owner_id);
+      if (owner) {
+        // Convert mongoose doc to object to modify it
+        const userObj = user.toObject();
+        userObj.membership_plans = owner.membership_plans;
+        userObj.gym_name = owner.gym_name;
+        userObj.gym_address = owner.gym_address;
+        userObj.gym_logo = owner.gym_logo;
+        user = userObj;
+      }
     }
 
     res.json({ success: true, user });
