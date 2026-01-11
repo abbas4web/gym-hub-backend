@@ -52,9 +52,9 @@ exports.getAllClients = async (req, res) => {
 // Add new client
 exports.addClient = async (req, res) => {
   try {
-    const { name, phone, email, photo, adharPhoto, membershipType, startDate, endDate: customEndDate, fee: customFee } = req.body;
+    const { name, phone, photo, adharPhoto, membershipType, startDate, endDate: customEndDate, fee: customFee } = req.body;
 
-    console.log('Add client request:', { name, phone, email, membershipType, startDate, customEndDate, customFee, hasPhoto: !!photo, hasAdhar: !!adharPhoto });
+    console.log('Add client request:', { name, phone, membershipType, startDate, customEndDate, customFee, hasPhoto: !!photo, hasAdhar: !!adharPhoto });
 
     if (!name || !phone || !membershipType || !startDate) {
       return res.status(400).json({ success: false, error: 'Required fields missing' });
@@ -71,7 +71,7 @@ exports.addClient = async (req, res) => {
       user_id: req.userId,
       name,
       phone,
-      email: email || null,
+      // email removed as per requirement
       photo: photo || null,
       adhar_photo: adharPhoto || null,
       membership_type: membershipType,
@@ -184,13 +184,13 @@ exports.addClient = async (req, res) => {
 // Update client
 exports.updateClient = async (req, res) => {
   const { id } = req.params;
-  const { name, phone, email, photo, adharPhoto, membershipType, startDate, endDate, fee } = req.body;
+  const { name, phone, photo, adharPhoto, membershipType, startDate, endDate, fee } = req.body;
 
   // Build update object
   const updates = {};
   if (name !== undefined) updates.name = name;
   if (phone !== undefined) updates.phone = phone;
-  if (email !== undefined) updates.email = email;
+  // email removed
   if (photo !== undefined) updates.photo = photo;
   if (adharPhoto !== undefined) updates.adhar_photo = adharPhoto;
   if (membershipType !== undefined) updates.membership_type = membershipType;
